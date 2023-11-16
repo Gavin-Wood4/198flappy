@@ -9,19 +9,49 @@ class Character():
         self.movey = 1
         self.rect = pg.Rect((x, y, 36, 26))
         self.birdimg = pg.image.load(os.path.relpath('bird.png'))
+        #unused variables:
+        self.angle = 0  # Initialize angle to 0
+        self.tilt_state = 0
+        self.max_tilt_up = -30
+        self.max_tilt_down = 30
+        self.tilt_speed = 10
+
 
     def move(self, y):
-        self.rect = self.rect.move(0,y)
+        self.rect = self.rect.move(0, y)
+        #self.angle = min(self.max_tilt_up, self.angle + self.tilt_speed)
+
     def move2(self, y):
         self.rect.y = self.rect.y + y
-    def display(self,screen):
-        screen.blit(self.birdimg, self.rect)
+        #self.angle = max(self.max_tilt_down, self.angle - self.tilt_speed)
+
+    def display(self, screen):
+        rotated_bird = pg.transform.rotate(self.birdimg, self.angle)
+        screen.blit(rotated_bird, self.rect)
+
     def collide(self, first_wall_pair):
         return self.rect.colliderect(first_wall_pair.top_wall) or self.rect.colliderect(first_wall_pair.bottom_wall)
 
+    #def reset_tilt(self):
+    #    self.tilt_state = 0
+
+    #def update_tilt(self):
+    #    if self.tilt_state == 1:
+    #        self.angle = min(self.max_tilt_up, self.angle + self.tilt_speed)
+    #    elif self.tilt_state == -1:
+    #        self.angle = max(self.max_tilt_down, self.angle - self.tilt_speed)
+
+    #def tilt_up(self):
+    #    self.tilt_state = 1
+
+    #def tilt_down(self):
+    #    self.tilt_state = -1
+
+    #def stop_tilting(self):
+    #    self.tilt_state = 0
 
 class PillarPair():
-    def __init__(self,width, height, xcoord, screen):
+    def __init__(self, width, height, xcoord, screen):
         self.width = width
         self.height = height
         self.xcoord = xcoord
@@ -54,8 +84,59 @@ class PillarPair():
         self.top_wall = other.top_wall
         self.bottom_wall = other.bottom_wall
 
+def collided(score, width, height):
+    score_font = pg.font.get_default_font()
+    score_card = pg.font.Font(score_font, 50)
+    score_card_disp = score_card.render(str(score), False, (0, 0, 0))
+    return score_card_disp
+
+def display_score(screen, score):
+    score_font = pg.font.Font(None, 36)
+    score_text = score_font.render("Score: " + str(score), True, (255, 255, 255))
+    screen.blit(score_text, (10, 10))
+
+def get_high_score():
+    if os.path.isfile('high_score.txt'):
+        with open('high_score.txt', 'r') as file:
+            try:
+                return int(file.read())
+            except ValueError:
+                return 0
+    else:
+        return 0
+
+def set_high_score(score):
+    with open('high_score.txt', 'w') as file:
+        file.write(str(score))
+
+
+def menu():
+    menu_width, menu_height = 400, 510
+    menu_screen = pg.display.set_mode((menu_width, menu_height))
+    pg.display.set_caption("Flappy Bird Menu")
+
+    menu_font = pg.font.Font(None, 36)
+    menu_text = menu_font.render("Press 'Space' to Play", True, (255, 255, 255))
+
+    high_score_font = pg.font.Font(None, 24)
+    high_score_text = high_score_font.render("High Score: " + str(get_high_score()), True, (255, 255, 255))
+
+    while True:
+        for event in pg.event.get():
+            if event.type == pg.QUIT:
+                sys.exit()
+            if event.type == pg.KEYDOWN:
+                if event.key == pg.K_SPACE:
+                    return  # Exit the menu when 'Space' is pressed
+
+        menu_screen.fill((0, 0, 0))
+        menu_screen.blit(menu_text,
+                         (menu_width // 2 - menu_text.get_width() // 2, menu_height // 2 - menu_text.get_height() // 2))
+        menu_screen.blit(high_score_text, (menu_width // 2 - high_score_text.get_width() // 2, menu_height // 2 + 20))
+        pg.display.flip()
+
 def play():
-    width = 300
+    width = 400
     height = 510
     size = width, height
     screen = pg.display.set_mode(size)
@@ -66,155 +147,129 @@ def play():
     bird = Character(x, y)
     clock = pg.time.Clock()
 
-    score = 0
-    frame = 0
-    acceleration = 0
-    up_acceleration = 0
-    move_yes = 0
-    collision_processed = 1
-    set_yes = 1
-    first_wall_x = 200
-    second_wall_x = 350
-    third_wall_x = 500
-    total_time_since_event = 0
-    initialize = 0
-
-    background = pg.image.load(os.path.relpath('bg.png'))
-    background = pg.transform.scale(background, (width, height))
-    first_wall_pair = PillarPair(width, height, first_wall_x, screen)
-    second_wall_pair = PillarPair(width, height, second_wall_x, screen)
-    third_wall_pair = PillarPair(width, height, third_wall_x, screen)
 
 
+    in_menu = True  # Start in the menu
+    while in_menu:
+        menu()
 
-    while True:
+        # Reset game state
+        score = 0
+        frame = 0
+        acceleration = 0
+        up_acceleration = 0
+        move_yes = 0
+        collision_processed = 1
+        set_yes = 1
+        initialize = 0
+        total_time_since_event = 0  # Initialize total_time_since_event here
 
-        a = clock.tick_busy_loop(120)
-        total_time_since_event += a
-        if initialize == 0:
-            total_time_since_event = 8
-            initialize = 1
+        first_wall_pair = PillarPair(width, height, 200, screen)
+        second_wall_pair = PillarPair(width, height, 350, screen)
+        third_wall_pair = PillarPair(width, height, 500, screen)
 
-        for event in pg.event.get():
-            if event.type == pg.QUIT:
-                sys.exit()
+        background = pg.image.load(os.path.relpath('bg.png'))
+        background = pg.transform.scale(background, (width, height))
 
-            if event.type == pg.KEYDOWN:
-                move_y = 1
-                move_yes = 1
-                total_time_since_event = 0
-                frame = 0
+        in_menu = False
 
-        if bird.collide(first_wall_pair):
-            score_card_disp = collided(score, width, height)
-            display_score(score)
-        elif bird.rect.left > first_wall_pair.top_wall.right and collision_processed == 1:
-            score += 1
-            collision_processed = 0
+        while not in_menu:
+            a = clock.tick_busy_loop(120)
+            total_time_since_event += a
+            if initialize == 0:
+                total_time_since_event = 8
+                initialize = 1
 
-        frame += 1
+            for event in pg.event.get():
+                if event.type == pg.QUIT:
+                    sys.exit()
 
+                if event.type == pg.KEYDOWN:
+                    if event.key == pg.K_SPACE:
+                        #bird.tilt_up()  # Set tilt state to tilt up
+                        move_y = 1
+                        move_yes = 1
+                        total_time_since_event = 0
+                        frame = 0
 
+                #if event.type == pg.KEYUP:
+                    #if event.key == pg.K_SPACE:
+                        #bird.stop_tilting()  # Stop tilting when space key is released
 
-        first_wall_pair.move(-1)
-        second_wall_pair.move(-1)
-        third_wall_pair.move(-1)
-        if first_wall_pair.top_wall.left  == -first_wall_pair.wall_width:
-            first_wall_pair.copy(second_wall_pair)
-            second_wall_pair.copy(third_wall_pair)
-            temp_wall_x = third_wall_pair.top_wall.x
-            third_wall_pair.gen_wall(temp_wall_x + 150)
-            first_wall_pair.asset_loader(width, height)
-            second_wall_pair.asset_loader(width, height)
-            third_wall_pair.asset_loader(width, height)
-            collision_processed = 1
+            bird.move2(move_y)  # Move the bird
+            #bird.update_tilt()  # Update tilt angle based on user input
 
-        if bird.rect.bottom >= height:
-            bird.rect.bottom = height
-        if bird.rect.top <= 0:
-            bird.rect.top = 0
+            #bird.angle = min(bird.max_tilt_up, bird.angle + bird.tilt_speed) if bird.tilt_state == 1 else bird.angle
+            #bird.angle = max(bird.max_tilt_down, bird.angle - bird.tilt_speed) if bird.tilt_state == -1 else bird.angle
 
-        if move_yes == 0:
-            if frame <= 15:
-                move_y = 1
-                bird.move2(move_y)
-                if frame == 15:
-                    move_y = 4
-                    bird.move2(move_y)
+            if bird.collide(first_wall_pair):
+                # Go to the menu when collision occurs
+                in_menu = True
+                # Check if the current score is higher than the high score
+                if score > get_high_score():
+                    set_high_score(score)  # Update the high score
+
+            if bird.rect.left > first_wall_pair.top_wall.right and collision_processed == 1:
+                score += 1
+                collision_processed = 0
+
+            frame += 1
+
+            first_wall_pair.move(-1)
+            second_wall_pair.move(-1)
+            third_wall_pair.move(-1)
+            if first_wall_pair.top_wall.left == -first_wall_pair.wall_width:
+                first_wall_pair.copy(second_wall_pair)
+                second_wall_pair.copy(third_wall_pair)
+                temp_wall_x = third_wall_pair.top_wall.x
+                third_wall_pair.gen_wall(temp_wall_x + 150)
+                first_wall_pair.asset_loader(width, height)
+                second_wall_pair.asset_loader(width, height)
+                third_wall_pair.asset_loader(width, height)
+                collision_processed = 1
+
+            if bird.rect.bottom >= height:
+                in_menu = True
+                collision_processed = 1
+                #bird.rect.bottom = height
+            if bird.rect.top <= 0:
+                bird.rect.top = 0
+
+            if move_yes == 0:
+                if frame <= 15:
                     move_y = 1
-                    acceleration = 0
+                    bird.move2(move_y)
+                    if frame == 15:
+                        move_y = 4
+                        bird.move2(move_y)
+                        move_y = 1
+                        acceleration = 0
+                else:
+                    acceleration += 1
+                    if acceleration == 46:
+                        if move_y < 10:
+                            move_y += 1
+                        acceleration = 0
+                    bird.move2(move_y)
             else:
-                acceleration += 1
-                if acceleration == 46:
-                    if move_y < 10:
-                        move_y += 1
-                    acceleration = 0
-                bird.move2(move_y)
+                up_acceleration += 1
+                if up_acceleration == 1:
+                    if move_y > -6:
+                        move_y -= 0.5
+                        if move_y <= -6:
+                            move_yes = 0
+                    bird.move2(move_y-1/4)
+                    up_acceleration = 0
 
-        else:
-            up_acceleration += 1
-            if up_acceleration == 1:
-                if move_y > -6:
-                    move_y -= 0.5
-                    if move_y <= -6:
-                        move_yes = 0
+            screen.fill((0, 0, 0))
+            screen.blit(background, (0, 0))
+            first_wall_pair.draw_pillars()
+            second_wall_pair.draw_pillars()
+            third_wall_pair.draw_pillars()
+            bird.display(screen)
 
-                bird.move2(move_y)
-                up_acceleration = 0
+            display_score(screen, score)
 
-
-        screen.fill((0,0,0))
-        screen.blit(background, (0,0))
-        first_wall_pair.draw_pillars()
-        second_wall_pair.draw_pillars()
-        third_wall_pair.draw_pillars()
-        bird.display(screen)
-
-        pg.display.flip()
-
-
-def collided(score, width, height):
-    score_font = pg.font.get_default_font()
-    score_card  = pg.font.Font(score_font, 50)
-    score_card_disp = score_card.render(str(score), False, (0, 0, 0))
-    return score_card_disp
-
-"""
-def another_draw(score_card_disp, width, height, first_wall_pair, second_wall_pair, bird, background):
-    screen = pg.display.set_mode((width, height))
-    while True:
-        for event in pg.event.get():
-            if event.type == pg.QUIT: sys.exit()
-            if event.type == pg.KEYDOWN:
-                if event.key == pg.K_r:
-                    play()
-
-        screen.blit(background, (0,0))
-
-        first_wall_pair.draw_pillars()
-        second_wall_pair.draw_pillars()
-
-        bird.display(screen)
-        screen.blit(score_card_disp, (width / 2, height / 2))
-        pg.display.flip()
-"""
-
-def display_score(score):
-    score_width, score_height = 200, 100  # Set the size for the score window
-    score_screen = pg.display.set_mode((score_width, score_height))
-    pg.display.set_caption("Display Score")
-
-    score_font = pg.font.Font(None, 36)
-    score_text = score_font.render("Score: " + str(score), True, (255, 255, 255))
-
-    while True:
-        for event in pg.event.get():
-            if event.type == pg.QUIT:
-                sys.exit()
-
-        score_screen.fill((0, 0, 0))
-        score_screen.blit(score_text, (score_width // 2 - score_text.get_width() // 2, score_height // 2 - score_text.get_height() // 2))
-        pg.display.flip()
-
+            pg.display.flip()
 
 play()

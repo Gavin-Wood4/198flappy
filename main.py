@@ -127,6 +127,7 @@ def menu():
                 sys.exit()
             if event.type == pg.KEYDOWN:
                 if event.key == pg.K_SPACE:
+                    pg.display.set_caption("Flappy Bird ECE198 F23")
                     return  # Exit the menu when 'Space' is pressed
 
         menu_screen.fill((0, 0, 0))
@@ -229,9 +230,7 @@ def play():
                 collision_processed = 1
 
             if bird.rect.bottom >= height:
-                in_menu = True
-                collision_processed = 1
-                #bird.rect.bottom = height
+                bird.rect.bottom = height
             if bird.rect.top <= 0:
                 bird.rect.top = 0
 
